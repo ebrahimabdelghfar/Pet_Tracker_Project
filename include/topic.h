@@ -1,0 +1,15 @@
+#define VOLTAGE_PERCENTAGE_TOPIC "/battery/precentage"
+#define GPS_LATITUDE_TOPIC "/gps/latitude"
+#define GPS_LONGITUDE_TOPIC "/gps/longitude"
+#define SPO2_TOPIC "/activity/spo2"
+#define HEART_RATE_TOPIC "/activity/heart_rate"
+#define TEMPERATURE_TOPIC "/activity/temperature"
+#define WIFI_SSID_TOPIC "/wifi/ssid"
+#define WIFI_PASSWORD_TOPIC "/wifi/password"
+#define MQTT_SERVER_TOPIC "/mqtt/server"
+#define MQTT_USERNAME_TOPIC "/mqtt/username"
+#define MQTT_PASSWORD_TOPIC "/mqtt/password"
+#define BLUETOOTH_NAME_TOPIC "/bluetooth/name"
+#define PET_NAME_TOPIC "/pet/name"
+#define MQTT_PORT 17712
+
