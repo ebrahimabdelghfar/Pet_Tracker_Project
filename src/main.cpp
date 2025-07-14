@@ -7,8 +7,9 @@
 #include <local_storage_lib.h>
 #include <Battery_Voltage_Sensor.h>
 #include "memory_key.h"
+#include "wifi_utils.h"
 #define CHECK_WIFI_INTERVAL 60000
-#define PUBLISH_INTERVAL 10000
+#define PUBLISH_INTERVAL 2000
 #define VOLTAGE_SENSOR_PIN A0 // Pin connected to the voltage sensor
 /*variables to hold WiFi and MQTT credentials*/
 /*default parameters*/
@@ -31,20 +32,6 @@ bool ssid_changed = false;          // flag to indicate if SSID has changed
 bool password_changed = false;      // flag to indicate if password has changed
 WiFiClient espClient;
 PubSubClient client(espClient);
-
-void setup_wifi(const char *wifi_SSID, const char *wifi_PASS)
-{
-  Serial.println();
-  Serial.print("Connecting to WiFi...");
-  WiFi.begin(wifi_SSID, wifi_PASS);
-  WiFi.setTxPower(WIFI_POWER_8_5dBm);
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(1000);
-    Serial.print(".");
-  }
-  Serial.println("Connected to WiFi");
-}
 
 void mqtt_callback(char *topic, byte *payload, unsigned int length)
 {
@@ -96,14 +83,6 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
 
 void reconnect()
 {
-  unsigned long prev_millis = millis();
-  unsigned long curr_millis = millis();
-  while ((WiFi.status() != WL_CONNECTED))
-  {
-    WiFi.disconnect();
-    setup_wifi(ssid.c_str(), password.c_str());
-    curr_millis = millis();
-  }
   while (!client.connected() && WiFi.status() == WL_CONNECTED)
   {
     Serial.print("Attempting MQTT connection...");
@@ -122,24 +101,6 @@ void reconnect()
       delay(100);
     }
   }
-}
-
-bool searchForWifiName(const String &wifi_name)
-{
-  int FalseNo = 0;
-  int retryCount = 2;
-  for (int i = 0; i < retryCount; i++)
-  {
-    int n = WiFi.scanNetworks();
-    for (int j = 0; j < n; j++)
-    {
-      if (WiFi.SSID(j) == wifi_name)
-      {
-        return true; // WiFi network found
-      }
-    }
-  }
-  return false;
 }
 
 void setup()
@@ -168,10 +129,13 @@ void setup()
   //   wifi_mode = getBool(SWITCH_MODE_KEY);
   // }
   Serial.begin(115200);
+  wifi_mode = getBool(SWITCH_MODE_KEY);
+  if(wifi_mode){
+    setup_wifi(ssid.c_str(), password.c_str());
+    client.setServer(mqtt_server.c_str(), MQTT_PORT);
+    client.setCallback(mqtt_callback);
+  }
 
-  setup_wifi(ssid.c_str(), password.c_str());
-  client.setServer(mqtt_server.c_str(), MQTT_PORT);
-  client.setCallback(mqtt_callback);
   heartRateSetup(); // Initialize heart rate sensor
   setupVoltageSensor(VOLTAGE_SENSOR_PIN);
   setupUblox6M(UBLOX_6M_RX_PIN, UBLOX_6M_TX_PIN); // Initialize GPS module
@@ -180,16 +144,10 @@ void setup()
 void loop()
 {
   ssid_changed &&password_changed ? (wifi_mode = true, saveBool(SWITCH_MODE_KEY, wifi_mode), ESP.restart()) : void(); // Restart if SSID or password has changed to connect to the new WiFi network
+  periodicCheckForWifiConnection(); // Check if WiFi is connected
+  periodicCheckForAvailableWifiNetworks(ssid.c_str()); // Check for available WiFi networks periodically if previously was connected to gsm
   if (wifi_mode)
   {
-    // periodically check for WiFi connection
-    static unsigned long lastCheck = 0;
-    if (millis() - lastCheck > CHECK_WIFI_INTERVAL)
-    {
-      lastCheck = millis();
-      searchForWifiName(ssid) ? void() : (wifi_mode = false, saveBool(SWITCH_MODE_KEY, wifi_mode), ESP.restart()); // Check if the WiFi network is available, if not, restart to reconfigure
-    }
-
     !client.connected() ? reconnect() : void(); // Reconnect to MQTT server if not connected
     client.loop();
     // To always update heart data
@@ -216,8 +174,4 @@ void loop()
       client.publish((pet_name + HEART_RATE_TOPIC).c_str(), String(pet_heart_rate).c_str());
     }
   }
-  // else{
-  //   //PUBLISH THE VITAL READING ALWAY
-  //   StabilizeBLESearchFlag(bluetooth_name.c_str())?(/*don't publish gps coordinates*/void()) : (updateGps(),/*publish gps coordinates*/void());
-  // }
 }
