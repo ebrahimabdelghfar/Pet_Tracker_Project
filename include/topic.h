@@ -11,5 +11,5 @@
 #define MQTT_PASSWORD_TOPIC "/mqtt/password"
 #define BLUETOOTH_NAME_TOPIC "/bluetooth/name"
 #define PET_NAME_TOPIC "/pet/name"
-#define MQTT_PORT 17712
+#define MQTT_PORT 11694
 

@@ -15,7 +15,7 @@
 /*default parameters*/
 String ssid = "asu12";                        // Replace with your WiFi SSID
 String password = "12345678";                 // Replace with your WiFi password
-String mqtt_server = "6.tcp.ngrok.io";        // Replace with your MQTT server address
+String mqtt_server = "2.tcp.ngrok.io";        // Replace with your MQTT server address
 String mqtt_username = "hima";                // Replace with your MQTT username
 String mqtt_password = "1234";                // Replace with your MQTT password
 String bluetooth_name = "ebrahim abdelghfar"; // Replace with your Bluetooth name
@@ -138,7 +138,7 @@ void setup()
 
   heartRateSetup(); // Initialize heart rate sensor
   setupVoltageSensor(VOLTAGE_SENSOR_PIN);
-  setupUblox6M(UBLOX_6M_RX_PIN, UBLOX_6M_TX_PIN); // Initialize GPS module
+  // setupUblox6M(UBLOX_6M_RX_PIN, UBLOX_6M_TX_PIN); // Initialize GPS module
 }
 
 void loop()
@@ -146,7 +146,7 @@ void loop()
   ssid_changed &&password_changed ? (wifi_mode = true, saveBool(SWITCH_MODE_KEY, wifi_mode), ESP.restart()) : void(); // Restart if SSID or password has changed to connect to the new WiFi network
   periodicCheckForWifiConnection(); // Check if WiFi is connected
   periodicCheckForAvailableWifiNetworks(ssid.c_str()); // Check for available WiFi networks periodically if previously was connected to gsm
-  if (wifi_mode)
+  if (getBool(SWITCH_MODE_KEY)) // If WiFi mode is enabled
   {
     !client.connected() ? reconnect() : void(); // Reconnect to MQTT server if not connected
     client.loop();

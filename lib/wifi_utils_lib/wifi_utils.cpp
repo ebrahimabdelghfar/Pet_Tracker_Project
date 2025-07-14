@@ -40,6 +40,7 @@ void periodicCheckForWifiConnection()
   static unsigned long last_wifi_check_time = 0;
   if (current_wifi_check_time - last_wifi_check_time > CHECK_WIFI_INTERVAL && getBool(SWITCH_MODE_KEY_WIFI))
   {
+    Serial.println("Periodic check for WiFi connection...if already connected");
     last_wifi_check_time = current_wifi_check_time;
     IsWiFiConnected() ? (wifi_mode_internal = true, saveBool(SWITCH_MODE_KEY_WIFI, wifi_mode_internal)) : (wifi_mode_internal = false, saveBool(SWITCH_MODE_KEY_WIFI, wifi_mode_internal), ESP.restart()); // Check if WiFi is connected, if not, restart to reconfigure
   }
@@ -48,14 +49,12 @@ void periodicCheckForWifiConnection()
 void periodicCheckForAvailableWifiNetworks(const char *wifi_SSID)
 {
   wifi_mode_internal = getBool(SWITCH_MODE_KEY_WIFI); // Get the current WiFi mode from storage
-  Serial.println("Checking for available WiFi networks...");
-  Serial.println("wifi mode_internal: " + String(wifi_mode_internal));
   unsigned long current_reconnect_to_wifi = millis();
   static unsigned long last_reconnect_to_wifi = 0;
 
   if (current_reconnect_to_wifi - last_reconnect_to_wifi > CHECK_AVAILABILITY_WIFI_RECONNECT && !(wifi_mode_internal)) // If WiFi is not connected check if it avaliable
   {
-    Serial.println("if the wifi has been av...");
+    Serial.println("Checking for available WiFi networks...");
     last_reconnect_to_wifi = current_reconnect_to_wifi;
     if (searchForWifiName(wifi_SSID))
     {
