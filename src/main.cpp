@@ -8,11 +8,15 @@
 #include <Battery_Voltage_Sensor.h>
 #include "memory_key.h"
 #include "wifi_utils.h"
+#include "gsm_utils.h"
 #define CHECK_WIFI_INTERVAL 60000
 #define PUBLISH_INTERVAL 2000
 #define VOLTAGE_SENSOR_PIN A0 // Pin connected to the voltage sensor
 /*variables to hold WiFi and MQTT credentials*/
 /*default parameters*/
+String apn  = "YourAPN";
+String gprsUser = "";
+String gprsPass = "";
 String ssid = "asu12";                        // Replace with your WiFi SSID
 String password = "12345678";                 // Replace with your WiFi password
 String mqtt_server = "2.tcp.ngrok.io";        // Replace with your MQTT server address
@@ -30,6 +34,7 @@ double pet_gps_longitude = 0.0;     // pet GPS longitude value
 bool wifi_mode = true;              // true for WiFi mode, false for GSM mode
 bool ssid_changed = false;          // flag to indicate if SSID has changed
 bool password_changed = false;      // flag to indicate if password has changed
+bool gsm_changed = false; // flag to indicate if GSM mode has changed
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -77,7 +82,23 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
   else if (strcmp(topic, (pet_name + BLUETOOTH_NAME_TOPIC).c_str()) == 0)
   {
     bluetooth_name = message;
-    saveString(BLUETOOTH_NAME_KEY, mqtt_password);
+    saveString(BLUETOOTH_NAME_KEY, bluetooth_name);
+  }
+  else if (strcmp(topic, (pet_name + GSM_APN_TOPIC).c_str()) == 0)
+  {
+    apn = message;
+    gsm_changed = true; // Set flag to indicate GSM mode change
+    saveString(GSM_APN_KEY, apn);
+  }
+  else if (strcmp(topic, (pet_name + GSM_USER_TOPIC).c_str()) == 0)
+  {
+    gprsUser = message;
+    saveString(GSM_USER_KEY, gprsUser);
+  }
+  else if (strcmp(topic, (pet_name + GSM_PASSWORD_TOPIC).c_str()) == 0)
+  {
+    gprsPass = message;
+    saveString(GSM_PASSWORD_KEY, gprsPass);
   }
 }
 
@@ -95,6 +116,9 @@ void reconnect()
       client.subscribe((pet_name + MQTT_USERNAME_TOPIC).c_str());
       client.subscribe((pet_name + MQTT_PASSWORD_TOPIC).c_str());
       client.subscribe((pet_name + BLUETOOTH_NAME_TOPIC).c_str());
+      client.subscribe((pet_name + GSM_APN_TOPIC).c_str());
+      client.subscribe((pet_name + GSM_USER_TOPIC).c_str());
+      client.subscribe((pet_name + GSM_PASSWORD_TOPIC).c_str());
     }
     else
     {
@@ -135,15 +159,19 @@ void setup()
     client.setServer(mqtt_server.c_str(), MQTT_PORT);
     client.setCallback(mqtt_callback);
   }
+  else{
+    setupGSM(apn,gprsUser,gprsPass);
+  }
 
   heartRateSetup(); // Initialize heart rate sensor
   setupVoltageSensor(VOLTAGE_SENSOR_PIN);
-  // setupUblox6M(UBLOX_6M_RX_PIN, UBLOX_6M_TX_PIN); // Initialize GPS module
+  // setupUblox6M(UBLOX_6M_TX_PIN, UBLOX_6M_RX_PIN); // Initialize GPS module
 }
 
 void loop()
 {
   ssid_changed &&password_changed ? (wifi_mode = true, saveBool(SWITCH_MODE_KEY, wifi_mode), ESP.restart()) : void(); // Restart if SSID or password has changed to connect to the new WiFi network
+  gsm_changed? (wifi_mode? (void()): ESP.restart()): void(); // If GSM mode has changed and currently in WiFi mode, do nothing
   periodicCheckForWifiConnection(); // Check if WiFi is connected
   periodicCheckForAvailableWifiNetworks(ssid.c_str()); // Check for available WiFi networks periodically if previously was connected to gsm
   if (getBool(SWITCH_MODE_KEY)) // If WiFi mode is enabled

@@ -8,4 +8,7 @@
 #define MQTT_PASSWORD_KEY "M_P"
 #define PET_NAME_KEY "P_N"
 #define SWITCH_MODE_KEY "S_M"
+#define GSM_APN_KEY "G_A"
+#define GSM_USER_KEY "G_U"
+#define GSM_PASSWORD_KEY "G_P"
 #endif

@@ -9,6 +9,9 @@
 #define MQTT_SERVER_TOPIC "/mqtt/server"
 #define MQTT_USERNAME_TOPIC "/mqtt/username"
 #define MQTT_PASSWORD_TOPIC "/mqtt/password"
+#define GSM_APN_TOPIC "/gsm/apn"
+#define GSM_USER_TOPIC "/gsm/gprsUser"
+#define GSM_PASSWORD_TOPIC "/gsm/gprsPass"
 #define BLUETOOTH_NAME_TOPIC "/bluetooth/name"
 #define PET_NAME_TOPIC "/pet/name"
 #define MQTT_PORT 11694
