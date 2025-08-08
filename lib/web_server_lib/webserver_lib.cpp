@@ -269,6 +269,7 @@ void startWebServer() {
         saveString(GSM_APN_KEY, apn);
         saveString(BLUETOOTH_NAME_KEY, btname);
         saveString(PET_NAME_KEY, dogname);
+        saveBool (FACTORY_RESET_KEY, false); // Clear factory reset flag
         // Restart the device to apply new settings
         Serial.println("Restarting device to apply new settings...");
         delay(1000);

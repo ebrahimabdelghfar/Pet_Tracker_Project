@@ -18,5 +18,6 @@
 #define GSM_USER_KEY "G_U"
 #define GSM_PASSWORD_KEY "G_P"
 #define SETUP_FINISHED_KEY "S_F"
+#define FACTORY_RESET_KEY "F_R"
 
 #endif

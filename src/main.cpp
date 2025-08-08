@@ -9,6 +9,8 @@
 #include "memory_key.h"
 #include "wifi_utils.h"
 #include "gsm_utils.h"
+#include "factory_reset_lib.h"
+#include "web_server_lib.h"
 #define CHECK_WIFI_INTERVAL 60000
 #define PUBLISH_INTERVAL 2000
 #define VOLTAGE_SENSOR_PIN A0 // Pin connected to the voltage sensor
@@ -35,6 +37,7 @@ bool wifi_mode = true;              // true for WiFi mode, false for GSM mode
 bool ssid_changed = false;          // flag to indicate if SSID has changed
 bool password_changed = false;      // flag to indicate if password has changed
 bool gsm_changed = false; // flag to indicate if GSM mode has changed
+bool is_factory_reset_requested = false; // flag to indicate if factory reset is requested
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -164,42 +167,54 @@ void setup()
   }
 
   heartRateSetup(); // Initialize heart rate sensor
-  setupVoltageSensor(VOLTAGE_SENSOR_PIN);
+  setupVoltageSensor(VOLTAGE_SENSOR_PIN); // Initialize voltage sensor
+  initFactoryResetFeature(); // Initialize factory reset feature
   // setupUblox6M(UBLOX_6M_TX_PIN, UBLOX_6M_RX_PIN); // Initialize GPS module
+  //check if factory reset is requested
+  is_factory_reset_requested = getBool(FACTORY_RESET_KEY);
+  is_factory_reset_requested ? startWebServer() : void(); // Start web server if factory reset is requested
 }
 
 void loop()
 {
-  ssid_changed &&password_changed ? (wifi_mode = true, saveBool(SWITCH_MODE_KEY, wifi_mode), ESP.restart()) : void(); // Restart if SSID or password has changed to connect to the new WiFi network
-  gsm_changed? (wifi_mode? (void()): ESP.restart()): void(); // If GSM mode has changed and currently in WiFi mode, do nothing
-  periodicCheckForWifiConnection(); // Check if WiFi is connected
-  periodicCheckForAvailableWifiNetworks(ssid.c_str()); // Check for available WiFi networks periodically if previously was connected to gsm
-  if (getBool(SWITCH_MODE_KEY)) // If WiFi mode is enabled
+  is_factory_reset_requested ? waitUntillSetupDevice() : void(); // this will not contiue the code and make the config portal open automatically
+
+  if (!is_factory_reset_requested) // If factory reset is requested
   {
-    !client.connected() ? reconnect() : void(); // Reconnect to MQTT server if not connected
-    client.loop();
-    // To always update heart data
-
-    // Publish pet data periodically
-    static unsigned long lastPublish = 0;
-    if (WiFi.status() == WL_CONNECTED && millis() - lastPublish > PUBLISH_INTERVAL)
+    Serial.println("Factory reset requested. Restarting device...");
+    delay(1000);
+    ESP.restart(); // Restart the device to apply factory reset
+    ssid_changed &&password_changed ? (wifi_mode = true, saveBool(SWITCH_MODE_KEY, wifi_mode), ESP.restart()) : void(); // Restart if SSID or password has changed to connect to the new WiFi network
+    gsm_changed? (wifi_mode? (void()): ESP.restart()): void(); // If GSM mode has changed and currently in WiFi mode, do nothing
+    periodicCheckForWifiConnection(); // Check if WiFi is connected
+    periodicCheckForAvailableWifiNetworks(ssid.c_str()); // Check for available WiFi networks periodically if previously was connected to gsm
+    if (getBool(SWITCH_MODE_KEY)) // If WiFi mode is enabled
     {
-      lastPublish = millis();
-      /*publish reading with wifi*/
-      unsigned long lastHeartRateUpdate = millis();
-      unsigned long currentHeartMillis = millis();
-      while (currentHeartMillis - lastHeartRateUpdate < 5000)
-      {
-        updateHeartRateOnly(); // Update heart rate and SpO2 data
-        currentHeartMillis = millis();
-      }
-      pet_temperature = getTemp();
-      pet_heart_rate = getHeartRate();
-      pet_battery_percentage = readPercentage();
+      !client.connected() ? reconnect() : void(); // Reconnect to MQTT server if not connected
+      client.loop();
+      // To always update heart data
 
-      client.publish((pet_name + TEMPERATURE_TOPIC).c_str(), String(pet_temperature).c_str());
-      client.publish((pet_name + VOLTAGE_PERCENTAGE_TOPIC).c_str(), String(pet_battery_percentage).c_str());
-      client.publish((pet_name + HEART_RATE_TOPIC).c_str(), String(pet_heart_rate).c_str());
+      // Publish pet data periodically
+      static unsigned long lastPublish = 0;
+      if (WiFi.status() == WL_CONNECTED && millis() - lastPublish > PUBLISH_INTERVAL)
+      {
+        lastPublish = millis();
+        /*publish reading with wifi*/
+        unsigned long lastHeartRateUpdate = millis();
+        unsigned long currentHeartMillis = millis();
+        while (currentHeartMillis - lastHeartRateUpdate < 5000)
+        {
+          updateHeartRateOnly(); // Update heart rate and SpO2 data
+          currentHeartMillis = millis();
+        }
+        pet_temperature = getTemp();
+        pet_heart_rate = getHeartRate();
+        pet_battery_percentage = readPercentage();
+
+        client.publish((pet_name + TEMPERATURE_TOPIC).c_str(), String(pet_temperature).c_str());
+        client.publish((pet_name + VOLTAGE_PERCENTAGE_TOPIC).c_str(), String(pet_battery_percentage).c_str());
+        client.publish((pet_name + HEART_RATE_TOPIC).c_str(), String(pet_heart_rate).c_str());
+      }
     }
   }
 }
