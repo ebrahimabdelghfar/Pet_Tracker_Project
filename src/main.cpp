@@ -38,6 +38,7 @@ bool ssid_changed = false;          // flag to indicate if SSID has changed
 bool password_changed = false;      // flag to indicate if password has changed
 bool gsm_changed = false; // flag to indicate if GSM mode has changed
 bool is_factory_reset_requested = false; // flag to indicate if factory reset is requested
+bool is_first_time_to_open_device = false; // flag to indicate if this is the first time opening the device
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -132,37 +133,32 @@ void reconnect()
 
 void setup()
 {
-  // if (!IsMemoryHaveBeenOpened())
-  // {
-  //   /*save default factory system values in the memory*/
-  //   saveString(PET_NAME_KEY, pet_name);
-  //   saveString(SSID_KEY, ssid);
-  //   saveString(WIFI_PASSWORD_KEY, password);
-  //   saveString(MQTT_SERVER_NAME_KEY, mqtt_server);
-  //   saveString(MQTT_USER_KEY, mqtt_username);
-  //   saveString(MQTT_PASSWORD_KEY, mqtt_password);
-  //   saveString(BLUETOOTH_NAME_KEY, mqtt_password);
-  // }
-  // else
-  // {
-  //   /*Load the last saved parameters*/
-  //   ssid = getString(SSID_KEY);
-  //   password = getString(WIFI_PASSWORD_KEY);
-  //   mqtt_server = getString(MQTT_SERVER_NAME_KEY);
-  //   mqtt_username = getString(MQTT_USER_KEY);
-  //   mqtt_password = getString(MQTT_PASSWORD_KEY);
-  //   bluetooth_name = getString(BLUETOOTH_NAME_KEY);
-  //   pet_name = getString(PET_NAME_KEY);
-  //   wifi_mode = getBool(SWITCH_MODE_KEY);
-  // }
   Serial.begin(115200);
+  //check if factory reset is requested
+  is_factory_reset_requested = getBool(FACTORY_RESET_KEY);
+  is_first_time_to_open_device = !IsMemoryHaveBeenOpened(); // Check if this is the first time opening the device
+  is_factory_reset_requested || is_first_time_to_open_device ? startWebServer() : void(); // Start web server if factory reset is requested or if it's the first time opening the device
+
+  if(!is_factory_reset_requested && !is_first_time_to_open_device){ // If factory reset is not requested and it's not the first time opening the device
+    /*Load the last saved parameters*/
+    ssid = getString(SSID_KEY);
+    password = getString(WIFI_PASSWORD_KEY);
+    mqtt_server = getString(MQTT_SERVER_NAME_KEY);
+    mqtt_username = getString(MQTT_USER_KEY);
+    mqtt_password = getString(MQTT_PASSWORD_KEY);
+    bluetooth_name = getString(BLUETOOTH_NAME_KEY);
+    pet_name = getString(PET_NAME_KEY);
+    wifi_mode = getBool(SWITCH_MODE_KEY);
+  }
+
   wifi_mode = getBool(SWITCH_MODE_KEY);
-  if(wifi_mode){
+  if(wifi_mode && !is_factory_reset_requested){ // If WiFi mode is enabled and factory reset is not requested
     setup_wifi(ssid.c_str(), password.c_str());
     client.setServer(mqtt_server.c_str(), MQTT_PORT);
     client.setCallback(mqtt_callback);
   }
-  else{
+  else if(!wifi_mode && !is_factory_reset_requested) // If GSM mode is enabled and factory reset is not requested
+  {
     setupGSM(apn,gprsUser,gprsPass);
   }
 
@@ -171,8 +167,7 @@ void setup()
   initFactoryResetFeature(); // Initialize factory reset feature
   // setupUblox6M(UBLOX_6M_TX_PIN, UBLOX_6M_RX_PIN); // Initialize GPS module
   //check if factory reset is requested
-  is_factory_reset_requested = getBool(FACTORY_RESET_KEY);
-  is_factory_reset_requested ? startWebServer() : void(); // Start web server if factory reset is requested
+  is_factory_reset_requested || !IsMemoryHaveBeenOpened() ? startWebServer() : void(); // Start web server if factory reset is requested
 }
 
 void loop()
@@ -181,9 +176,6 @@ void loop()
 
   if (!is_factory_reset_requested) // If factory reset is requested
   {
-    Serial.println("Factory reset requested. Restarting device...");
-    delay(1000);
-    ESP.restart(); // Restart the device to apply factory reset
     ssid_changed &&password_changed ? (wifi_mode = true, saveBool(SWITCH_MODE_KEY, wifi_mode), ESP.restart()) : void(); // Restart if SSID or password has changed to connect to the new WiFi network
     gsm_changed? (wifi_mode? (void()): ESP.restart()): void(); // If GSM mode has changed and currently in WiFi mode, do nothing
     periodicCheckForWifiConnection(); // Check if WiFi is connected
@@ -192,8 +184,6 @@ void loop()
     {
       !client.connected() ? reconnect() : void(); // Reconnect to MQTT server if not connected
       client.loop();
-      // To always update heart data
-
       // Publish pet data periodically
       static unsigned long lastPublish = 0;
       if (WiFi.status() == WL_CONNECTED && millis() - lastPublish > PUBLISH_INTERVAL)
