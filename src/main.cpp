@@ -159,7 +159,7 @@ void setup()
   }
   else if(!wifi_mode && !is_factory_reset_requested) // If GSM mode is enabled and factory reset is not requested
   {
-    setupGSM(apn,gprsUser,gprsPass);
+    setupGSM(apn);
   }
 
   heartRateSetup(); // Initialize heart rate sensor
