@@ -40,6 +40,7 @@ bool password_changed = false;      // flag to indicate if password has changed
 bool gsm_changed = false; // flag to indicate if GSM mode has changed
 bool is_factory_reset_requested = false; // flag to indicate if factory reset is requested
 bool is_first_time_to_open_device = false; // flag to indicate if this is the first time opening the device
+bool bluetooth_device_found = false; // flag to indicate if Bluetooth device is found
 HardwareSerial SerialAT(2); // RX, TX
 WiFiClient espClient;
 PubSubClient mqtt_wifi(espClient);
@@ -237,6 +238,12 @@ void loop()
     gsm_changed? (wifi_mode? (void()): ESP.restart()): void(); // If GSM mode has changed and currently in WiFi mode, do nothing
     periodicCheckForWifiConnection(); // Check if WiFi is connected
     periodicCheckForAvailableWifiNetworks(ssid.c_str()); // Check for available WiFi networks periodically if previously was connected to gsm
+    static unsigned long last_check_for_bluetooth = 0;
+    if (millis() - last_check_for_bluetooth > 30000) // Check for Bluetooth devices every 30 seconds
+    {
+      last_check_for_bluetooth = millis();
+      bluetooth_device_found = searchBluetoothDevices(bluetooth_name);
+    }
     if (getBool(SWITCH_MODE_KEY)) // If WiFi mode is enabled
     {
       !mqtt_wifi.connected() ? reconnect_wifi() : void(); // Reconnect to MQTT server if not connected
@@ -261,8 +268,10 @@ void loop()
         mqtt_wifi.publish((pet_name + TEMPERATURE_TOPIC).c_str(), String(pet_temperature).c_str());
         mqtt_wifi.publish((pet_name + VOLTAGE_PERCENTAGE_TOPIC).c_str(), String(pet_battery_percentage).c_str());
         mqtt_wifi.publish((pet_name + HEART_RATE_TOPIC).c_str(), String(pet_heart_rate).c_str());
-        if(!searchBluetoothDevices(bluetooth_name)){
-          //send location via wifi
+        if (bluetooth_device_found) {
+          // mqtt_wifi.publish((pet_name + BLUETOOTH_STATUS_TOPIC).c_str(), "Connected");
+        } else {
+          // mqtt_wifi.publish((pet_name + BLUETOOTH_STATUS_TOPIC).c_str(), "Disconnected");
         }
       }
     }
@@ -290,8 +299,10 @@ void loop()
         mqtt_gsm.publish((pet_name + TEMPERATURE_TOPIC).c_str(), String(pet_temperature).c_str());
         mqtt_gsm.publish((pet_name + VOLTAGE_PERCENTAGE_TOPIC).c_str(), String(pet_battery_percentage).c_str());
         mqtt_gsm.publish((pet_name + HEART_RATE_TOPIC).c_str(), String(pet_heart_rate).c_str());
-        if(!searchBluetoothDevices(bluetooth_name)){
-          //send location via gsm
+        if (bluetooth_device_found) {
+          // mqtt_gsm.publish((pet_name + BLUETOOTH_STATUS_TOPIC).c_str(), "Connected");
+        } else {
+          // mqtt_gsm.publish((pet_name + BLUETOOTH_STATUS_TOPIC).c_str(), "Disconnected");
         }
       }
     }
