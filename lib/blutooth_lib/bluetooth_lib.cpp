@@ -1,38 +1,30 @@
-#include <bluetooth_lib.h>
-bool BLE_initialized = false;
-#define NO_READING_CHECK 3
-bool searchBLEDevices(const char* targetName)
-{
-  if (!BLE_initialized) {
-    BLE.begin()?BLE_initialized = true:BLE_initialized = false;                // Initialize BLE
-  }
-  BLE.scan();                 // Start scanning for BLE devices
-  delay(100);            // Allow some time for scanning to start
-  for (int i = 0; i < 100; i++) // Scan for a limited time
-  {
-    BLEDevice peripheral = BLE.available();
-    if (peripheral)
-    {
-      // Check if the discovered peripheral matches the target name
-      if (strcmp(peripheral.localName().c_str(), targetName) == 0)
-      {
-        BLE.stopScan(); // Stop scanning if the target is found
-        return true;    // Target device found
-      }
-    }
-    else delay(10); // Wait for a short time before checking again
-  }
-  BLE.stopScan(); // Stop scanning if the target is found
-  return false;   // Target device not found
-}
+#include "bluetooth_lib.h"
+#include <BluetoothSerial.h>
 
-bool StabilizeBLESearchFlag(const char* targetName)
-{
-  int trueCount = 0; // Initialize trueCount to 0
-  for (int i = 0; i < NO_READING_CHECK; i++) {
-    if(searchBLEDevices(targetName)) {
-      trueCount++;
-    }
+
+ 
+#define BT_DISCOVER_TIME 10000
+
+bool searchBluetoothDevices(String targetName) {
+  BluetoothSerial SerialBT;
+  SerialBT.begin("ESP32test");  //Bluetooth device name
+  Serial.println("The device started, now you can pair it with bluetooth!"); 
+  bool deviceFound = false;
+  Serial.println("Starting synchronous discovery... ");
+  BTScanResults *pResults = SerialBT.discover(BT_DISCOVER_TIME);
+  int count = pResults->getCount();
+  for (int i = 0; i < count; i++) {
+    BTAdvertisedDevice *device = pResults->getDevice(i);
+    // Compare device name with target name
+    if (device != nullptr) {
+        const char *deviceName = device->getName().c_str();
+        Serial.printf("Discovered device: %s\n", deviceName);
+        if (deviceName != nullptr && strcmp(deviceName, targetName.c_str()) == 0) {
+            deviceFound = true;
+            break;
+        }
+      }
   }
-  return trueCount >= int(ceil(NO_READING_CHECK * 3 / 4)); // Return true if at least 3 out of 4 readings are true
+  SerialBT.end();
+  return deviceFound;
 }

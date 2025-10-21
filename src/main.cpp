@@ -1,7 +1,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <topic.h>
-#include <bluetooth_lib.h>
+// #include <bluetooth_lib.h>
 #include <GY_MAX_30100.h>
 #include <Ublox_6M_lib.h>
 #include <local_storage_lib.h>
@@ -10,6 +10,7 @@
 #include "wifi_utils.h"
 #include "gsm_utils.h"
 #include "factory_reset_lib.h"
+#include "bluetooth_lib.h"
 #include "web_server_lib.h"
 #define CHECK_WIFI_INTERVAL 60000
 #define PUBLISH_INTERVAL 2000
@@ -39,8 +40,37 @@ bool password_changed = false;      // flag to indicate if password has changed
 bool gsm_changed = false; // flag to indicate if GSM mode has changed
 bool is_factory_reset_requested = false; // flag to indicate if factory reset is requested
 bool is_first_time_to_open_device = false; // flag to indicate if this is the first time opening the device
+HardwareSerial SerialAT(2); // RX, TX
 WiFiClient espClient;
-PubSubClient client(espClient);
+PubSubClient mqtt_wifi(espClient);
+TinyGsm modem(SerialAT);
+TinyGsmClient gsm_client(modem);
+PubSubClient mqtt_gsm(gsm_client);
+
+void setupGSM(String apn) {
+  SerialAT.begin(115200); // Start GSM serial communication at 115200 baud rate
+  Serial.println("GSM start.");
+  modem.restart(); // Restart the modem to ensure it is ready
+  Serial.println("Modem: " + modem.getModemInfo());
+  Serial.println("Searching for telco provider.");
+  while(!modem.waitForNetwork())
+  {
+  if (modem.isNetworkConnected()) break;
+      modem.restart();
+      delay(6000);
+      Serial.print(".");
+  }
+  Serial.println("Connected to telco.");
+  Serial.println("Signal Quality: " + String(modem.getSignalQuality()));
+
+  Serial.println("Connecting to GPRS network.");
+  while(!modem.gprsConnect(apn.c_str(), GPRS_USER, GPRS_PASS))
+  {
+      Serial.println("fail");
+      delay(5000);
+  }
+  Serial.println("Connected to GPRS: " + String(apn));
+}
 
 void mqtt_callback(char *topic, byte *payload, unsigned int length)
 {
@@ -106,23 +136,48 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
   }
 }
 
-void reconnect()
+void reconnect_wifi()
 {
-  while (!client.connected() && WiFi.status() == WL_CONNECTED)
+  while (!mqtt_wifi.connected() && WiFi.status() == WL_CONNECTED)
   {
     Serial.print("Attempting MQTT connection...");
-    if (client.connect("ESP32Client", mqtt_username.c_str(), mqtt_password.c_str()))
+    if (mqtt_wifi.connect("ESP32Client", mqtt_username.c_str(), mqtt_password.c_str()))
     {
-      client.subscribe((pet_name + PET_NAME_TOPIC).c_str());
-      client.subscribe((pet_name + WIFI_SSID_TOPIC).c_str());
-      client.subscribe((pet_name + WIFI_PASSWORD_TOPIC).c_str());
-      client.subscribe((pet_name + MQTT_SERVER_TOPIC).c_str());
-      client.subscribe((pet_name + MQTT_USERNAME_TOPIC).c_str());
-      client.subscribe((pet_name + MQTT_PASSWORD_TOPIC).c_str());
-      client.subscribe((pet_name + BLUETOOTH_NAME_TOPIC).c_str());
-      client.subscribe((pet_name + GSM_APN_TOPIC).c_str());
-      client.subscribe((pet_name + GSM_USER_TOPIC).c_str());
-      client.subscribe((pet_name + GSM_PASSWORD_TOPIC).c_str());
+      mqtt_wifi.subscribe((pet_name + PET_NAME_TOPIC).c_str());
+      mqtt_wifi.subscribe((pet_name + WIFI_SSID_TOPIC).c_str());
+      mqtt_wifi.subscribe((pet_name + WIFI_PASSWORD_TOPIC).c_str());
+      mqtt_wifi.subscribe((pet_name + MQTT_SERVER_TOPIC).c_str());
+      mqtt_wifi.subscribe((pet_name + MQTT_USERNAME_TOPIC).c_str());
+      mqtt_wifi.subscribe((pet_name + MQTT_PASSWORD_TOPIC).c_str());
+      mqtt_gsm.subscribe((pet_name + BLUETOOTH_NAME_TOPIC).c_str());
+      mqtt_gsm.subscribe((pet_name + GSM_APN_TOPIC).c_str());
+      mqtt_gsm.subscribe((pet_name + GSM_USER_TOPIC).c_str());
+      mqtt_gsm.subscribe((pet_name + GSM_PASSWORD_TOPIC).c_str());
+    }
+    else
+    {
+      delay(100);
+    }
+  }
+}
+
+void reconnect_gsm()
+{
+  while (!mqtt_gsm.connected())
+  {
+    Serial.print("Attempting MQTT connection...");
+    if (mqtt_gsm.connect("ESP32Client", mqtt_username.c_str(), mqtt_password.c_str()))
+    {
+      mqtt_gsm.subscribe((pet_name + PET_NAME_TOPIC).c_str());
+      mqtt_gsm.subscribe((pet_name + WIFI_SSID_TOPIC).c_str());
+      mqtt_gsm.subscribe((pet_name + WIFI_PASSWORD_TOPIC).c_str());
+      mqtt_gsm.subscribe((pet_name + MQTT_SERVER_TOPIC).c_str());
+      mqtt_gsm.subscribe((pet_name + MQTT_USERNAME_TOPIC).c_str());
+      mqtt_gsm.subscribe((pet_name + MQTT_PASSWORD_TOPIC).c_str());
+      mqtt_gsm.subscribe((pet_name + BLUETOOTH_NAME_TOPIC).c_str());
+      mqtt_gsm.subscribe((pet_name + GSM_APN_TOPIC).c_str());
+      mqtt_gsm.subscribe((pet_name + GSM_USER_TOPIC).c_str());
+      mqtt_gsm.subscribe((pet_name + GSM_PASSWORD_TOPIC).c_str());
     }
     else
     {
@@ -154,12 +209,14 @@ void setup()
   wifi_mode = getBool(SWITCH_MODE_KEY);
   if(wifi_mode && !is_factory_reset_requested){ // If WiFi mode is enabled and factory reset is not requested
     setup_wifi(ssid.c_str(), password.c_str());
-    client.setServer(mqtt_server.c_str(), MQTT_PORT);
-    client.setCallback(mqtt_callback);
+    mqtt_wifi.setServer(mqtt_server.c_str(), MQTT_PORT);
+    mqtt_wifi.setCallback(mqtt_callback);
   }
   else if(!wifi_mode && !is_factory_reset_requested) // If GSM mode is enabled and factory reset is not requested
   {
     setupGSM(apn);
+    mqtt_gsm.setServer(mqtt_server.c_str(), MQTT_PORT);
+    mqtt_gsm.setCallback(mqtt_callback);
   }
 
   heartRateSetup(); // Initialize heart rate sensor
@@ -182,8 +239,8 @@ void loop()
     periodicCheckForAvailableWifiNetworks(ssid.c_str()); // Check for available WiFi networks periodically if previously was connected to gsm
     if (getBool(SWITCH_MODE_KEY)) // If WiFi mode is enabled
     {
-      !client.connected() ? reconnect() : void(); // Reconnect to MQTT server if not connected
-      client.loop();
+      !mqtt_wifi.connected() ? reconnect_wifi() : void(); // Reconnect to MQTT server if not connected
+      mqtt_wifi.loop();
       // Publish pet data periodically
       static unsigned long lastPublish = 0;
       if (WiFi.status() == WL_CONNECTED && millis() - lastPublish > PUBLISH_INTERVAL)
@@ -201,9 +258,41 @@ void loop()
         pet_heart_rate = getHeartRate();
         pet_battery_percentage = readPercentage();
 
-        client.publish((pet_name + TEMPERATURE_TOPIC).c_str(), String(pet_temperature).c_str());
-        client.publish((pet_name + VOLTAGE_PERCENTAGE_TOPIC).c_str(), String(pet_battery_percentage).c_str());
-        client.publish((pet_name + HEART_RATE_TOPIC).c_str(), String(pet_heart_rate).c_str());
+        mqtt_wifi.publish((pet_name + TEMPERATURE_TOPIC).c_str(), String(pet_temperature).c_str());
+        mqtt_wifi.publish((pet_name + VOLTAGE_PERCENTAGE_TOPIC).c_str(), String(pet_battery_percentage).c_str());
+        mqtt_wifi.publish((pet_name + HEART_RATE_TOPIC).c_str(), String(pet_heart_rate).c_str());
+        if(!searchBluetoothDevices(bluetooth_name)){
+          //send location via wifi
+        }
+      }
+    }
+    else // If GSM mode is enabled
+    {
+      !mqtt_gsm.connected() ? reconnect_gsm() : void(); // Reconnect to MQTT server if not connected
+      mqtt_gsm.loop();
+      // Publish pet data periodically
+      static unsigned long lastPublish = 0;
+      if (millis() - lastPublish > PUBLISH_INTERVAL)
+      {
+        lastPublish = millis();
+        /*publish reading with gsm*/
+        unsigned long lastHeartRateUpdate = millis();
+        unsigned long currentHeartMillis = millis();
+        while (currentHeartMillis - lastHeartRateUpdate < 5000)
+        {
+          updateHeartRateOnly(); // Update heart rate and SpO2 data
+          currentHeartMillis = millis();
+        }
+        pet_temperature = getTemp();
+        pet_heart_rate = getHeartRate();
+        pet_battery_percentage = readPercentage();
+
+        mqtt_gsm.publish((pet_name + TEMPERATURE_TOPIC).c_str(), String(pet_temperature).c_str());
+        mqtt_gsm.publish((pet_name + VOLTAGE_PERCENTAGE_TOPIC).c_str(), String(pet_battery_percentage).c_str());
+        mqtt_gsm.publish((pet_name + HEART_RATE_TOPIC).c_str(), String(pet_heart_rate).c_str());
+        if(!searchBluetoothDevices(bluetooth_name)){
+          //send location via gsm
+        }
       }
     }
   }

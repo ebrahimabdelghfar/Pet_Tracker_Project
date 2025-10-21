@@ -1,7 +1,6 @@
 #ifndef BLUETOOTH_LIB
 #define BLUETOOTH_LIB
-#include <ArduinoBLE.h>
+#include <BluetoothSerial.h>
 #include <Arduino.h>
-bool searchBLEDevices(const char* targetName);
-bool StabilizeBLESearchFlag(const char* targetName);
+bool searchBluetoothDevices(String targetName);
 #endif
