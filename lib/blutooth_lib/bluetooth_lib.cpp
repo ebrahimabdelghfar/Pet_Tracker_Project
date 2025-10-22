@@ -1,8 +1,6 @@
 #include "bluetooth_lib.h"
 #include <BluetoothSerial.h>
 
-
- 
 #define BT_DISCOVER_TIME 10000
 
 bool searchBluetoothDevices(String targetName) {

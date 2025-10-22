@@ -1,31 +1,28 @@
 #include "Ublox_6M_lib.h"
 
-SoftwareSerial gpsSerial;
+SoftwareSerial gpsSerial (UBLOX_6M_RX_PIN, UBLOX_6M_TX_PIN); // RX, TX
 TinyGPSPlus gps;
 
-float latitude = 0.0;
-float longitude = 0.0;
+double latitude = 0.0;
+double longitude = 0.0;
 
-void setupUblox6M(int RX_PIN, int TX_PIN) {
+void setupUblox6M() {
     // Initialize the SoftwareSerial with the specified RX and TX pins
-    gpsSerial.begin(UBLOX_6M_BAUDRATE, SWSERIAL_8N1, RX_PIN, TX_PIN);
-    // Optionally, you can set a timeout for the serial communication
-    gpsSerial.setTimeout(1000); // Set timeout to 1000 milliseconds (1 second)
+    gpsSerial.begin(UBLOX_6M_BAUDRATE);
 }
 
 
-void updateGps(){
-  while (gpsSerial.available() > 0){
-    gps.encode(gpsSerial.read());
-        latitude = gps.location.lat();
-        longitude = gps.location.lng();
+std::pair<double, double> getGpsLocation(){
+  //loop untill gps is updated
+  for (int i = 0; i < 10; i++) {
+    while (gpsSerial.available() > 0) {
+      gps.encode(gpsSerial.read());
     }
+    if (gps.location.isUpdated()) {
+      latitude = gps.location.lat();
+      longitude = gps.location.lng();
+    }
+  }
+    return {latitude, longitude};
 }
 
-double getLatitude() {
-    return latitude;
-}
-
-double getLongitude() {
-    return longitude;
-}

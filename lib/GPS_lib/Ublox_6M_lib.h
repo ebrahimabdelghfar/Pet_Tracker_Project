@@ -5,8 +5,6 @@
 #include <SoftwareSerial.h>
 #include <gps_config.h>
 
-void setupUblox6M(int RX_PIN, int TX_PIN);
-void updateGps();
-double getLatitude();
-double getLongitude();
+void setupUblox6M();
+std::pair<double, double> getGpsLocation();
 #endif
