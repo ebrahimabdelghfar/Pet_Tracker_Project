@@ -20,7 +20,7 @@ float readVoltage()
         // Assuming a 3.3V reference voltage and a 12-bit ADC resolution
         float voltage = ((rawValue / 4095.0) * REF_VOLTAGE); // ESP32 ADC resolution is 12-bit, so max value is 4095
         // Voltage divider calculation to get the actual battery voltage
-        voltage = (voltage * ((RESISTOR_1 + RESISTOR_2) / RESISTOR_2))+CALIBRATION_OFFSET;
+        voltage = (voltage * ((RESISTOR_1 + RESISTOR_2) / RESISTOR_1))+CALIBRATION_OFFSET;
         averageVoltage += voltage; // Accumulate the voltage readings
         delay(10); // Small delay for stability
     }

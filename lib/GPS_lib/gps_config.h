@@ -1,3 +1,3 @@
 #define UBLOX_6M_BAUDRATE 9600
-#define UBLOX_6M_TX_PIN 5
-#define UBLOX_6M_RX_PIN 18
+#define UBLOX_6M_TX_PIN 18
+#define UBLOX_6M_RX_PIN 5

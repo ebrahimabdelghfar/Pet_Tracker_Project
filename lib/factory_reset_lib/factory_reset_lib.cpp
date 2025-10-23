@@ -20,7 +20,7 @@ void IRAM_ATTR Timer0_ISR()
 }
 
 void initFactoryResetFeature() {
-  pinMode(FACTORY_RESET_PIN, INPUT); // Set GPIO 4 as input with pull-up resistor
+  pinMode(FACTORY_RESET_PIN, INPUT_PULLUP); // Set GPIO 4 as input with pull-up resistor
   Timer0_Cfg = timerBegin(0, 80, true);
   timerAttachInterrupt(Timer0_Cfg, &Timer0_ISR, true);
   timerAlarmWrite(Timer0_Cfg, 1000*1000, true); // Set alarm to trigger every second

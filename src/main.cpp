@@ -1,7 +1,6 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <topic.h>
-// #include <bluetooth_lib.h>
 #include <GY_MAX_30100.h>
 #include <Ublox_6M_lib.h>
 #include <local_storage_lib.h>
@@ -10,22 +9,22 @@
 #include "wifi_utils.h"
 #include "gsm_utils.h"
 #include "factory_reset_lib.h"
-#include "bluetooth_lib.h"
+// #include "bluetooth_lib.h"
 #include "web_server_lib.h"
 #define CHECK_WIFI_INTERVAL 60000
 #define PUBLISH_INTERVAL 2000
-#define VOLTAGE_SENSOR_PIN A0 // Pin connected to the voltage sensor
+#define VOLTAGE_SENSOR_PIN 33 // Pin connected to the voltage sensor
 /*variables to hold WiFi and MQTT credentials*/
 /*default parameters*/
-String apn = "YourAPN";
+String apn = "internet.etisalat"; // Replace with your telco APN
 String gprsUser = "";
 String gprsPass = "";
 String ssid = "asu12";                        // Replace with your WiFi SSID
 String password = "12345678";                 // Replace with your WiFi password
-String mqtt_server = "2.tcp.ngrok.io";        // Replace with your MQTT server address
+String mqtt_server = "0.tcp.eu.ngrok.io";        // Replace with your MQTT server address
 String mqtt_username = "hima";                // Replace with your MQTT username
-String mqtt_password = "1234";                // Replace with your MQTT password
-String bluetooth_name = "ebrahim abdelghfar"; // Replace with your Bluetooth name
+String mqtt_password = "himaet23";                // Replace with your MQTT password
+String bluetooth_name = "Ebrahim's S25 Ultra"; // Replace with your Bluetooth name
 String pet_name = "PET";                      // Replace with your pet's name
 /*variables to hold pet data*/
 float pet_temperature = 0.0;               // pet temperature value
@@ -39,7 +38,7 @@ bool ssid_changed = false;                 // flag to indicate if SSID has chang
 bool password_changed = false;             // flag to indicate if password has changed
 bool gsm_changed = false;                  // flag to indicate if GSM mode has changed
 bool is_factory_reset_requested = false;   // flag to indicate if factory reset is requested
-bool is_first_time_to_open_device = false; // flag to indicate if this is the first time opening the device
+bool is_first_time_to_open_device = false;  // flag to indicate if this is the first time opening the device
 bool bluetooth_device_found = false;       // flag to indicate if Bluetooth device is found
 HardwareSerial SerialAT(2);                // RX, TX
 WiFiClient espClient;
@@ -47,6 +46,15 @@ PubSubClient mqtt_wifi(espClient);
 TinyGsm modem(SerialAT);
 TinyGsmClient gsm_client(modem);
 PubSubClient mqtt_gsm(gsm_client);
+
+void IRAM_ATTR gpsTask(void* pvParameters){
+  while(true){
+    auto [latitude, longitude] = getGpsLocation();
+    // Process GPS data
+    pet_gps_latitude = latitude;
+    pet_gps_longitude = longitude;
+  }
+}
 
 void setupGSM(String apn)
 {
@@ -192,21 +200,21 @@ void reconnect_gsm()
 void setup()
 {
   Serial.begin(115200);
-  setupUblox6M(); // Initialize GPS module
+  initFactoryResetFeature();              // Initialize factory reset feature
   // check if factory reset is requested
   is_factory_reset_requested = getBool(FACTORY_RESET_KEY);
   is_first_time_to_open_device = !IsMemoryHaveBeenOpened();                               // Check if this is the first time opening the device
   is_factory_reset_requested || is_first_time_to_open_device ? startWebServer() : void(); // Start web server if factory reset is requested or if it's the first time opening the device
 
-  if (!is_factory_reset_requested && !is_first_time_to_open_device)
+  if (!is_factory_reset_requested && is_first_time_to_open_device)
   { // If factory reset is not requested and it's not the first time opening the device
     /*Load the last saved parameters*/
     ssid = getString(SSID_KEY);
     password = getString(WIFI_PASSWORD_KEY);
-    mqtt_server = getString(MQTT_SERVER_NAME_KEY);
-    mqtt_username = getString(MQTT_USER_KEY);
-    mqtt_password = getString(MQTT_PASSWORD_KEY);
-    bluetooth_name = getString(BLUETOOTH_NAME_KEY);
+    // mqtt_server = getString(MQTT_SERVER_NAME_KEY);
+    // mqtt_username = getString(MQTT_USER_KEY);
+    // mqtt_password = getString(MQTT_PASSWORD_KEY);
+    // bluetooth_name = getString(BLUETOOTH_NAME_KEY);
     pet_name = getString(PET_NAME_KEY);
     wifi_mode = getBool(SWITCH_MODE_KEY);
   }
@@ -224,22 +232,15 @@ void setup()
     mqtt_gsm.setServer(mqtt_server.c_str(), MQTT_PORT);
     mqtt_gsm.setCallback(mqtt_callback);
   }
-
+  setupUblox6M(); // Initialize GPS module
   heartRateSetup();                       // Initialize heart rate sensor
   setupVoltageSensor(VOLTAGE_SENSOR_PIN); // Initialize voltage sensor
-  initFactoryResetFeature();              // Initialize factory reset feature
   // setupUblox6M(UBLOX_6M_TX_PIN, UBLOX_6M_RX_PIN); // Initialize GPS module
   // check if factory reset is requested
   is_factory_reset_requested || !IsMemoryHaveBeenOpened() ? startWebServer() : void(); // Start web server if factory reset is requested
-}
-
-void periodicCheckForBluetoothConnection()
-{
-  static unsigned long last_check_for_bluetooth = 0;
-  if (millis() - last_check_for_bluetooth > 30000) // Check for Bluetooth devices every 30 seconds
+  if (!is_factory_reset_requested && !getBool(SWITCH_MODE_KEY)) // operate gps task only in gsm mode
   {
-    last_check_for_bluetooth = millis();
-    bluetooth_device_found = searchBluetoothDevices(bluetooth_name);
+    xTaskCreatePinnedToCore(gpsTask, "GPS Task", 4096, NULL, 1, NULL, 1); // Create GPS task on core 1
   }
 }
 
@@ -253,7 +254,6 @@ void loop()
     gsm_changed ? (wifi_mode ? (void()) : ESP.restart()) : void();                                                      // If GSM mode has changed and currently in WiFi mode, do nothing
     periodicCheckForWifiConnection();                                                                                   // Check if WiFi is connected
     periodicCheckForAvailableWifiNetworks(ssid.c_str());                                                                // Check for available WiFi networks periodically if previously was connected to gsm
-    periodicCheckForBluetoothConnection();
     if (getBool(SWITCH_MODE_KEY)) // If WiFi mode is enabled
     {
       !mqtt_wifi.connected() ? reconnect_wifi() : void(); // Reconnect to MQTT server if not connected
@@ -274,19 +274,13 @@ void loop()
         pet_temperature = getTemp();
         pet_heart_rate = getHeartRate();
         pet_battery_percentage = readPercentage();
-
+        Serial.println("Publishing data over WiFi:");
+        Serial.println("Battery Percentage: " + String(pet_battery_percentage));
         mqtt_wifi.publish((pet_name + TEMPERATURE_TOPIC).c_str(), String(pet_temperature).c_str());
         mqtt_wifi.publish((pet_name + VOLTAGE_PERCENTAGE_TOPIC).c_str(), String(pet_battery_percentage).c_str());
         mqtt_wifi.publish((pet_name + HEART_RATE_TOPIC).c_str(), String(pet_heart_rate).c_str());
-        if (!bluetooth_device_found)
-        {
-          // publish gps location only if bluetooth device is not found
-          auto [gps_lat, gps_long] = getGpsLocation();
-          pet_gps_latitude = gps_lat;
-          pet_gps_longitude = gps_long;
-          mqtt_wifi.publish((pet_name + GPS_LATITUDE_TOPIC).c_str(), String(pet_gps_latitude).c_str());
-          mqtt_wifi.publish((pet_name + GPS_LONGITUDE_TOPIC).c_str(), String(pet_gps_longitude).c_str());
-        }
+        mqtt_wifi.publish((pet_name + GPS_LATITUDE_TOPIC).c_str(), String(pet_gps_latitude).c_str());
+        mqtt_wifi.publish((pet_name + GPS_LONGITUDE_TOPIC).c_str(), String(pet_gps_longitude).c_str());
       }
     }
     else // If GSM mode is enabled
@@ -309,19 +303,13 @@ void loop()
         pet_temperature = getTemp();
         pet_heart_rate = getHeartRate();
         pet_battery_percentage = readPercentage();
-
+        Serial.println("Battery Percentage: " + String(pet_battery_percentage));
         mqtt_gsm.publish((pet_name + TEMPERATURE_TOPIC).c_str(), String(pet_temperature).c_str());
         mqtt_gsm.publish((pet_name + VOLTAGE_PERCENTAGE_TOPIC).c_str(), String(pet_battery_percentage).c_str());
         mqtt_gsm.publish((pet_name + HEART_RATE_TOPIC).c_str(), String(pet_heart_rate).c_str());
-        if (!bluetooth_device_found)
-        {
-          // publish gps location only if bluetooth device is not found
-          auto [gps_lat, gps_long] = getGpsLocation();
-          pet_gps_latitude = gps_lat;
-          pet_gps_longitude = gps_long;
-          mqtt_gsm.publish((pet_name + GPS_LATITUDE_TOPIC).c_str(), String(pet_gps_latitude).c_str());
-          mqtt_gsm.publish((pet_name + GPS_LONGITUDE_TOPIC).c_str(), String(pet_gps_longitude).c_str());
-        }
+        // publish gps location only if bluetooth device is not found
+        mqtt_gsm.publish((pet_name + GPS_LATITUDE_TOPIC).c_str(), String(pet_gps_latitude).c_str());
+        mqtt_gsm.publish((pet_name + GPS_LONGITUDE_TOPIC).c_str(), String(pet_gps_longitude).c_str());
       }
     }
   }
