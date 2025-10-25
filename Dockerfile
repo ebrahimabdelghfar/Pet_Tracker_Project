@@ -11,7 +11,7 @@ RUN mkdir -p /mosquitto/config \
 
 # Copy custom configuration
 COPY mosquitto/mosquitto.conf /mosquitto/config/mosquitto.conf
-COPY mosquitto/entrypoint.sh /entrypoint.sh
+COPY mosquitto/debug-entrypoint.sh /entrypoint.sh
 
 # Make entrypoint executable
 RUN chmod +x /entrypoint.sh
