@@ -36,17 +36,12 @@ spec:
               name: mosquitto-credentials
               key: admin-password
         - name: MOSQUITTO_ADDITIONAL_USERS
-          value: "pet_tracker:$(MOSQUITTO_PET_TRACKER_PASSWORD),dashboard:$(MOSQUITTO_DASHBOARD_PASSWORD)"
-        - name: MOSQUITTO_PET_TRACKER_PASSWORD
+          value: "hima:$(MOSQUITTO_HIMA_PASSWORD)"
+        - name: MOSQUITTO_HIMA_PASSWORD
           valueFrom:
             secretKeyRef:
               name: mosquitto-credentials
-              key: pet-tracker-password
-        - name: MOSQUITTO_DASHBOARD_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: mosquitto-credentials
-              key: dashboard-password
+              key: hima-password
         volumeMounts:
         - name: config
           mountPath: /mosquitto/config

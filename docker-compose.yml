@@ -15,9 +15,9 @@ services:
       - mosquitto_logs:/mosquitto/log
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     environment:
-      - MOSQUITTO_ADMIN_PASSWORD=your_secure_password
+      - MOSQUITTO_ADMIN_PASSWORD=himaet23
       # Format: "user1:pass1,user2:pass2"
-      - MOSQUITTO_ADDITIONAL_USERS=pet_tracker:pet_tracker_pass,dashboard:dashboard_pass
+      - MOSQUITTO_ADDITIONAL_USERS=hima:himaet23
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "mosquitto_sub", "-h", "localhost", "-p", "1883", "-t", "$SYS/broker/clients/total"]

@@ -2,7 +2,7 @@
 FROM eclipse-mosquitto:2.0.18
 
 # Install bash for entrypoint
-RUN apk add --no-cache bash
+RUN apk add --no-cache bash coreutils
 
 # Create necessary directories
 RUN mkdir -p /mosquitto/config \

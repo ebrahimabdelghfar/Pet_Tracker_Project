@@ -2,8 +2,6 @@
 
 # Entrypoint script for Mosquitto with dynamic password configuration
 
-trap 'echo "Received signal, terminating..." && kill -TERM $PID && wait $PID' TERM INT
-
 # Default values
 ADMIN_PASSWORD="${MOSQUITTO_ADMIN_PASSWORD:-changeme}"
 ADDITIONAL_USERS="${MOSQUITTO_ADDITIONAL_USERS:-}"
@@ -28,14 +26,6 @@ fi
 chown mosquitto:mosquitto /mosquitto/config/passwords.txt 2>/dev/null || true
 chmod 600 /mosquitto/config/passwords.txt 2>/dev/null || true
 
-# Start Mosquitto in background
+# Start Mosquitto in foreground (IMPORTANT: This keeps container alive)
 echo "Starting Mosquitto MQTT broker..."
-/usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf &
-PID=$!
-
-# Wait for the process (this keeps the container alive)
-wait $PID
-exit_code=$?
-
-echo "Mosquitto exited with code: $exit_code"
-exit $exit_code
+exec /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf
