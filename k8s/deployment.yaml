@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosquitto
+  namespace: mosquitto
+  labels:
+    app: mosquitto
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mosquitto
+  template:
+    metadata:
+      labels:
+        app: mosquitto
+    spec:
+      containers:
+      - name: mosquitto
+        image: ghcr.io/ebrahimabdelghfar/pet_tracker_project/mosquitto:latest
+        imagePullPolicy: Always
+        ports:
+        - name: mqtt
+          containerPort: 1883
+          protocol: TCP
+        - name: mqtts
+          containerPort: 8883
+          protocol: TCP
+        - name: websocket
+          containerPort: 9001
+          protocol: TCP
+        env:
+        - name: MOSQUITTO_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mosquitto-credentials
+              key: admin-password
+        - name: MOSQUITTO_ADDITIONAL_USERS
+          value: "pet_tracker:$(MOSQUITTO_PET_TRACKER_PASSWORD),dashboard:$(MOSQUITTO_DASHBOARD_PASSWORD)"
+        - name: MOSQUITTO_PET_TRACKER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mosquitto-credentials
+              key: pet-tracker-password
+        - name: MOSQUITTO_DASHBOARD_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mosquitto-credentials
+              key: dashboard-password
+        volumeMounts:
+        - name: config
+          mountPath: /mosquitto/config
+        - name: data
+          mountPath: /mosquitto/data
+        - name: logs
+          mountPath: /mosquitto/log
+        livenessProbe:
+          exec:
+            command:
+            - mosquitto_sub
+            - -h
+            - localhost
+            - -p
+            - "1883"
+            - -t
+            - $SYS/broker/clients/total
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - mosquitto_sub
+            - -h
+            - localhost
+            - -p
+            - "1883"
+            - -t
+            - $SYS/broker/clients/total
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 2
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: config
+        configMap:
+          name: mosquitto-config
+      - name: data
+        emptyDir: {}
+      - name: logs
+        emptyDir: {}
