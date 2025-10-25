@@ -59,12 +59,26 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Deploy to server (optional)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository_owner != ''
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          MOSQUITTO_USER: hima
+          MOSQUITTO_PASSWORD: himaet23
         run: |
+          # Check if required secrets are set
+          if [ -z "$DEPLOY_KEY" ] || [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_USER" ]; then
+            echo "⚠️  SKIPPING SERVER DEPLOYMENT"
+            echo "Required secrets not configured: DEPLOY_KEY, DEPLOY_HOST, DEPLOY_USER"
+            echo "To enable server deployment, add these secrets to your GitHub repository:"
+            echo "  1. Go to Settings → Secrets and variables → Actions"
+            echo "  2. Add DEPLOY_KEY (SSH private key)"
+            echo "  3. Add DEPLOY_HOST (server IP address)"
+            echo "  4. Add DEPLOY_USER (SSH username)"
+            exit 0
+          fi
+          
           mkdir -p ~/.ssh
           echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
@@ -79,8 +93,44 @@ jobs:
             --name mosquitto \
             -p 1883:1883 \
             -p 8883:8883 \
+            -e MOSQUITTO_ADMIN_PASSWORD=himaet23 \
+            -e MOSQUITTO_ADDITIONAL_USERS=hima:himaet23 \
             -v /etc/mosquitto/config:/mosquitto/config \
             -v /mosquitto/data:/mosquitto/data \
             -v /mosquitto/log:/mosquitto/log \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+          
+          # Verify broker is running
+          sleep 5
+          docker logs mosquitto
           EOF
+
+      - name: Output Broker Connection Info
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "=========================================="
+          echo "✅ MOSQUITTO MQTT BROKER DEPLOYED"
+          echo "=========================================="
+          echo ""
+          echo "🔗 BROKER CONNECTION DETAILS:"
+          echo "   Hostname/IP: ${{ secrets.DEPLOY_HOST }}"
+          echo "   MQTT Port: 1883"
+          echo "   MQTT+TLS Port: 8883"
+          echo "   WebSocket Port: 9001"
+          echo ""
+          echo "🔐 CREDENTIALS:"
+          echo "   Username: hima"
+          echo "   Password: himaet23"
+          echo ""
+          echo "🧪 TEST CONNECTION:"
+          echo "   mosquitto_sub -h ${{ secrets.DEPLOY_HOST }} -p 1883 \\"
+          echo "     -u hima -P himaet23 -t 'test/topic'"
+          echo ""
+          echo "📱 UPDATE YOUR MQTT_CONFIG:"
+          echo "   const char* mqtt_server = \"${{ secrets.DEPLOY_HOST }}\";"
+          echo "   const int mqtt_port = 1883;"
+          echo "   const char* mqtt_user = \"hima\";"
+          echo "   const char* mqtt_password = \"himaet23\";"
+          echo ""
+          echo "=========================================="
+          echo ""
