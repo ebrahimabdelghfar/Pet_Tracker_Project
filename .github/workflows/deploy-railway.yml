@@ -1,0 +1,50 @@
+name: Deploy MQTT Broker to Railway
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'mosquitto/**'
+      - '.github/workflows/deploy-railway.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy-to-railway:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Railway
+        uses: railwayapp/deploy-action@v1
+        with:
+          token: ${{ secrets.RAILWAY_TOKEN }}
+          service: mosquitto
+          
+      - name: Get Railway Deployment Info
+        if: success()
+        run: |
+          echo "╔════════════════════════════════════════════════════════════╗"
+          echo "║          ✅ MQTT BROKER DEPLOYED TO RAILWAY               ║"
+          echo "╚════════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "📋 CONNECTION DETAILS:"
+          echo "   Broker IP/Domain: Get from Railway dashboard"
+          echo "   Port: 1883"
+          echo "   Username: hima"
+          echo "   Password: himaet23"
+          echo ""
+          echo "🔗 Railway Dashboard:"
+          echo "   https://railway.app/dashboard"
+          echo ""
+          echo "📱 Add to ESP32 Code:"
+          echo "   const char* mqtt_server = \"your-railway-domain.up.railway.app\";"
+          echo "   const int mqtt_port = 1883;"
+          echo "   const char* mqtt_user = \"hima\";"
+          echo "   const char* mqtt_password = \"himaet23\";"
+          echo ""
+          echo "🧪 Test Connection (from terminal):"
+          echo "   mosquitto_sub -h your-railway-domain.up.railway.app -p 1883 \\"
+          echo "     -u hima -P himaet23 -t '$SYS/broker/clients/total'"
