@@ -204,10 +204,12 @@ void setup()
 {
   Serial.begin(115200);
   initFactoryResetFeature(); // Initialize factory reset feature
+  pinMode(BUILTIN_LED, OUTPUT);
   // check if factory reset is requested
   is_factory_reset_requested = getBool(FACTORY_RESET_KEY);
   is_first_time_to_open_device = !IsMemoryHaveBeenOpened(); // Check if this is the first time opening the device
   is_factory_reset_requested ? startWebServer() : void(); // Start web server if factory reset is requested
+  is_factory_reset_requested? digitalWrite(BUILTIN_LED, HIGH) : digitalWrite(BUILTIN_LED, LOW); // Turn on the built-in LED to indicate factory reset mode
   if (!is_factory_reset_requested)
   { // If factory reset is not requested and it's not the first time opening the device
     /*Load the last saved parameters*/
