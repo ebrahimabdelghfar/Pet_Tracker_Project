@@ -11,10 +11,10 @@ RUN mkdir -p /mosquitto/config \
 # Copy custom configuration
 COPY mosquitto.conf /mosquitto/config/mosquitto.conf
 COPY password.conf /mosquitto/config/password.conf
+COPY entrypoint.sh /entrypoint.sh
 
-# Generate password file with initial credentials
-# Default user: admin, password: changeme (should be overridden in production)
-RUN mosquitto_passwd -c /mosquitto/config/passwords.txt admin changeme
+# Make entrypoint executable
+RUN chmod +x /entrypoint.sh
 
 # Set proper permissions
 RUN chown -R mosquitto:mosquitto /mosquitto/config \
@@ -32,5 +32,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD mosquitto_sub -h localhost -p 1883 -t '$SYS/broker/clients/total' \
     || exit 1
 
-# Run Mosquitto
-CMD ["/usr/sbin/mosquitto", "-c", "/mosquitto/config/mosquitto.conf"]
+# Run entrypoint script
+ENTRYPOINT ["/entrypoint.sh"]
