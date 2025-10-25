@@ -178,11 +178,6 @@ const char* HTML_CONTENT = R"rawliteral(
                 <input type="text" id="apn" name="apn" class="input-field" placeholder=" " required>
                 <label for="apn" class="input-label">APN</label>
             </div>
-            <!-- Bluetooth Name Input -->
-            <div class="input-group">
-                <input type="text" id="btname" name="btname" class="input-field" placeholder=" " required>
-                <label for="btname" class="input-label">Bluetooth Name</label>
-            </div>
             <!-- Dog Name Input -->
             <div class="input-group">
                 <input type="text" id="dogname" name="dogname" class="input-field" placeholder=" " required>
@@ -246,7 +241,6 @@ void startWebServer() {
         String ssid = request->hasParam("ssid") ? request->getParam("ssid")->value() : "";
         String pass = request->hasParam("pass") ? request->getParam("pass")->value() : "";
         String apn = request->hasParam("apn") ? request->getParam("apn")->value() : "";
-        String btname = request->hasParam("btname") ? request->getParam("btname")->value() : "";
         String dogname = request->hasParam("dogname") ? request->getParam("dogname")->value() : "";
 
         // Print the received values to the Serial Monitor
@@ -256,8 +250,6 @@ void startWebServer() {
         Serial.println(pass);
         Serial.print("APN: ");
         Serial.println(apn);
-        Serial.print("Bluetooth Name: ");
-        Serial.println(btname);
         Serial.print("Dog's Name: ");
         Serial.println(dogname);
         Serial.println("-----------------------------\n");
@@ -266,7 +258,6 @@ void startWebServer() {
         saveString(SSID_KEY, ssid);
         saveString(WIFI_PASSWORD_KEY, pass);
         saveString(GSM_APN_KEY, apn);
-        saveString(BLUETOOTH_NAME_KEY, btname);
         saveString(PET_NAME_KEY, dogname);
         saveBool (FACTORY_RESET_KEY, false); // Clear factory reset flag
         // Restart the device to apply new settings and close wifi access point

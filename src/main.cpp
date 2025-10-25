@@ -21,7 +21,7 @@ String gprsUser = "";
 String gprsPass = "";
 String ssid = "asu13";                         // Replace with your WiFi SSID
 String password = "12345678";                  // Replace with your WiFi password
-String mqtt_server = "0.tcp.eu.ngrok.io";      // Replace with your MQTT server address
+String mqtt_server = "2.tcp.eu.ngrok.io";      // Replace with your MQTT server address
 String mqtt_username = "hima";                 // Replace with your MQTT username
 String mqtt_password = "himaet23";             // Replace with your MQTT password
 String bluetooth_name = "Ebrahim's S25 Ultra"; // Replace with your Bluetooth name
@@ -55,7 +55,6 @@ void IRAM_ATTR gpsTask(void *pvParameters)
     // Process GPS data
     pet_gps_latitude = latitude;
     pet_gps_longitude = longitude;
-    vTaskDelay(pdMS_TO_TICKS(1000)); // Delay 1 second to allow other tasks to run
   }
 }
 
@@ -156,7 +155,7 @@ void reconnect_wifi()
   while (!mqtt_wifi.connected() && WiFi.status() == WL_CONNECTED && millis() < timeout)
   {
     Serial.print("Attempting MQTT connection...");
-    if (mqtt_wifi.connect("ESP32Client", mqtt_username.c_str(), mqtt_password.c_str()))
+    if (mqtt_wifi.connect(String("ESP32Client" + random(0xffff)).c_str(), mqtt_username.c_str(), mqtt_password.c_str()))
     {
       mqtt_wifi.subscribe((pet_name + PET_NAME_TOPIC).c_str());
       mqtt_wifi.subscribe((pet_name + WIFI_SSID_TOPIC).c_str());
@@ -172,7 +171,6 @@ void reconnect_wifi()
     else
     {
       delay(100);
-      yield(); // Feed the watchdog timer
     }
   }
 }
@@ -182,7 +180,7 @@ void reconnect_gsm()
   while (!mqtt_gsm.connected())
   {
     Serial.print("Attempting MQTT connection...");
-    if (mqtt_gsm.connect("ESP32Client", mqtt_username.c_str(), mqtt_password.c_str()))
+    if (mqtt_gsm.connect(String("ESP32Client" + random(0xffff)).c_str(), mqtt_username.c_str(), mqtt_password.c_str()))
     {
       mqtt_gsm.subscribe((pet_name + PET_NAME_TOPIC).c_str());
       mqtt_gsm.subscribe((pet_name + WIFI_SSID_TOPIC).c_str());
@@ -210,7 +208,7 @@ void setup()
   is_factory_reset_requested = getBool(FACTORY_RESET_KEY);
   is_first_time_to_open_device = !IsMemoryHaveBeenOpened(); // Check if this is the first time opening the device
   is_factory_reset_requested ? startWebServer() : void(); // Start web server if factory reset is requested
-  if (!is_factory_reset_requested && is_first_time_to_open_device)
+  if (!is_factory_reset_requested)
   { // If factory reset is not requested and it's not the first time opening the device
     /*Load the last saved parameters*/
     ssid = getString(SSID_KEY);
