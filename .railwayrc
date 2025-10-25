@@ -1,4 +1,0 @@
-{
-  "builder": "dockerfile",
-  "dockerfile": "mosquitto/Dockerfile"
-}
