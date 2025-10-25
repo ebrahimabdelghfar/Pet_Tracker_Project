@@ -14,5 +14,5 @@
 #define GSM_PASSWORD_TOPIC "/gsm/gprsPass"
 #define BLUETOOTH_NAME_TOPIC "/bluetooth/name"
 #define PET_NAME_TOPIC "/pet/name"
-#define MQTT_PORT 11173
+#define MQTT_PORT 12615
 

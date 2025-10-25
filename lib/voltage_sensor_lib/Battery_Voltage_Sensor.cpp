@@ -2,7 +2,7 @@
 #include "voltage_sensor_config.h" // Include the configuration header for resistor values
 #include "Battery_Voltage_Sensor.h"
 int pin; // Pin number for the voltage sensor
-int averageReadings = 50; // Number of readings to average for more stable voltage reading
+int averageReadings = 100; // Number of readings to average for more stable voltage reading
 float averageVoltage = 0.0; // Variable to store the average voltage reading
 void setupVoltageSensor(int connectedPin)
 {
@@ -22,7 +22,6 @@ float readVoltage()
         // Voltage divider calculation to get the actual battery voltage
         voltage = (voltage * ((RESISTOR_1 + RESISTOR_2) / RESISTOR_1))+CALIBRATION_OFFSET;
         averageVoltage += voltage; // Accumulate the voltage readings
-        delay(10); // Small delay for stability
     }
     averageVoltage /= averageReadings; // Calculate the average voltage
     return averageVoltage;

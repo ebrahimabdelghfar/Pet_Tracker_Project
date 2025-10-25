@@ -19,13 +19,13 @@
 String apn = "internet.etisalat"; // Replace with your telco APN
 String gprsUser = "";
 String gprsPass = "";
-String ssid = "asu12";                        // Replace with your WiFi SSID
-String password = "12345678";                 // Replace with your WiFi password
-String mqtt_server = "0.tcp.eu.ngrok.io";        // Replace with your MQTT server address
-String mqtt_username = "hima";                // Replace with your MQTT username
-String mqtt_password = "himaet23";                // Replace with your MQTT password
+String ssid = "asu13";                         // Replace with your WiFi SSID
+String password = "12345678";                  // Replace with your WiFi password
+String mqtt_server = "0.tcp.eu.ngrok.io";      // Replace with your MQTT server address
+String mqtt_username = "hima";                 // Replace with your MQTT username
+String mqtt_password = "himaet23";             // Replace with your MQTT password
 String bluetooth_name = "Ebrahim's S25 Ultra"; // Replace with your Bluetooth name
-String pet_name = "PET";                      // Replace with your pet's name
+String pet_name = "PET";                       // Replace with your pet's name
 /*variables to hold pet data*/
 float pet_temperature = 0.0;               // pet temperature value
 float pet_battery_percentage = 0.0;        // pet battery percentage value
@@ -38,7 +38,7 @@ bool ssid_changed = false;                 // flag to indicate if SSID has chang
 bool password_changed = false;             // flag to indicate if password has changed
 bool gsm_changed = false;                  // flag to indicate if GSM mode has changed
 bool is_factory_reset_requested = false;   // flag to indicate if factory reset is requested
-bool is_first_time_to_open_device = false;  // flag to indicate if this is the first time opening the device
+bool is_first_time_to_open_device = false; // flag to indicate if this is the first time opening the device
 bool bluetooth_device_found = false;       // flag to indicate if Bluetooth device is found
 HardwareSerial SerialAT(2);                // RX, TX
 WiFiClient espClient;
@@ -47,12 +47,15 @@ TinyGsm modem(SerialAT);
 TinyGsmClient gsm_client(modem);
 PubSubClient mqtt_gsm(gsm_client);
 
-void IRAM_ATTR gpsTask(void* pvParameters){
-  while(true){
+void IRAM_ATTR gpsTask(void *pvParameters)
+{
+  while (true)
+  {
     auto [latitude, longitude] = getGpsLocation();
     // Process GPS data
     pet_gps_latitude = latitude;
     pet_gps_longitude = longitude;
+    vTaskDelay(pdMS_TO_TICKS(1000)); // Delay 1 second to allow other tasks to run
   }
 }
 
@@ -149,7 +152,8 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
 
 void reconnect_wifi()
 {
-  while (!mqtt_wifi.connected() && WiFi.status() == WL_CONNECTED)
+  uint32_t timeout = millis() + 30000; // 30 second timeout
+  while (!mqtt_wifi.connected() && WiFi.status() == WL_CONNECTED && millis() < timeout)
   {
     Serial.print("Attempting MQTT connection...");
     if (mqtt_wifi.connect("ESP32Client", mqtt_username.c_str(), mqtt_password.c_str()))
@@ -168,6 +172,7 @@ void reconnect_wifi()
     else
     {
       delay(100);
+      yield(); // Feed the watchdog timer
     }
   }
 }
@@ -200,12 +205,11 @@ void reconnect_gsm()
 void setup()
 {
   Serial.begin(115200);
-  initFactoryResetFeature();              // Initialize factory reset feature
+  initFactoryResetFeature(); // Initialize factory reset feature
   // check if factory reset is requested
   is_factory_reset_requested = getBool(FACTORY_RESET_KEY);
-  is_first_time_to_open_device = !IsMemoryHaveBeenOpened();                               // Check if this is the first time opening the device
-  is_factory_reset_requested || is_first_time_to_open_device ? startWebServer() : void(); // Start web server if factory reset is requested or if it's the first time opening the device
-
+  is_first_time_to_open_device = !IsMemoryHaveBeenOpened(); // Check if this is the first time opening the device
+  is_factory_reset_requested ? startWebServer() : void(); // Start web server if factory reset is requested
   if (!is_factory_reset_requested && is_first_time_to_open_device)
   { // If factory reset is not requested and it's not the first time opening the device
     /*Load the last saved parameters*/
@@ -226,18 +230,22 @@ void setup()
     mqtt_wifi.setServer(mqtt_server.c_str(), MQTT_PORT);
     mqtt_wifi.setCallback(mqtt_callback);
   }
+
   else if (!wifi_mode && !is_factory_reset_requested) // If GSM mode is enabled and factory reset is not requested
   {
     setupGSM(apn);
     mqtt_gsm.setServer(mqtt_server.c_str(), MQTT_PORT);
     mqtt_gsm.setCallback(mqtt_callback);
   }
-  setupUblox6M(); // Initialize GPS module
-  heartRateSetup();                       // Initialize heart rate sensor
-  setupVoltageSensor(VOLTAGE_SENSOR_PIN); // Initialize voltage sensor
-  // setupUblox6M(UBLOX_6M_TX_PIN, UBLOX_6M_RX_PIN); // Initialize GPS module
+
+  if (!is_factory_reset_requested)
+  {
+    heartRateSetup();                       // Initialize heart rate sensor
+    setupVoltageSensor(VOLTAGE_SENSOR_PIN); // Initialize voltage sensor
+    setupUblox6M(); // Initialize GPS module
+  }
+
   // check if factory reset is requested
-  is_factory_reset_requested || !IsMemoryHaveBeenOpened() ? startWebServer() : void(); // Start web server if factory reset is requested
   if (!is_factory_reset_requested && !getBool(SWITCH_MODE_KEY)) // operate gps task only in gsm mode
   {
     xTaskCreatePinnedToCore(gpsTask, "GPS Task", 4096, NULL, 1, NULL, 1); // Create GPS task on core 1
@@ -254,7 +262,7 @@ void loop()
     gsm_changed ? (wifi_mode ? (void()) : ESP.restart()) : void();                                                      // If GSM mode has changed and currently in WiFi mode, do nothing
     periodicCheckForWifiConnection();                                                                                   // Check if WiFi is connected
     periodicCheckForAvailableWifiNetworks(ssid.c_str());                                                                // Check for available WiFi networks periodically if previously was connected to gsm
-    if (getBool(SWITCH_MODE_KEY)) // If WiFi mode is enabled
+    if (getBool(SWITCH_MODE_KEY))                                                                                       // If WiFi mode is enabled
     {
       !mqtt_wifi.connected() ? reconnect_wifi() : void(); // Reconnect to MQTT server if not connected
       mqtt_wifi.loop();
@@ -303,6 +311,7 @@ void loop()
         pet_temperature = getTemp();
         pet_heart_rate = getHeartRate();
         pet_battery_percentage = readPercentage();
+        Serial.println("Publishing data over GSM");
         Serial.println("Battery Percentage: " + String(pet_battery_percentage));
         mqtt_gsm.publish((pet_name + TEMPERATURE_TOPIC).c_str(), String(pet_temperature).c_str());
         mqtt_gsm.publish((pet_name + VOLTAGE_PERCENTAGE_TOPIC).c_str(), String(pet_battery_percentage).c_str());

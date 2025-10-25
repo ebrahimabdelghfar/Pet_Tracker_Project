@@ -227,7 +227,6 @@ const char* HTML_CONTENT = R"rawliteral(
 void startWebServer() {
     // Start the Wi-Fi Access Point
     WiFi.softAP(AP_SSID + String(random(0xffff), HEX), AP_PASSWORD);
-    WiFi.setTxPower(WIFI_POWER_8_5dBm);
     // Print the IP address of the Access Point
     IPAddress myIP = WiFi.softAPIP();
     // --- Start DNS Server for Captive Portal ---
@@ -270,7 +269,8 @@ void startWebServer() {
         saveString(BLUETOOTH_NAME_KEY, btname);
         saveString(PET_NAME_KEY, dogname);
         saveBool (FACTORY_RESET_KEY, false); // Clear factory reset flag
-        // Restart the device to apply new settings
+        // Restart the device to apply new settings and close wifi access point
+        WiFi.softAPdisconnect (true);
         Serial.println("Restarting device to apply new settings...");
         delay(1000);
         ESP.restart();

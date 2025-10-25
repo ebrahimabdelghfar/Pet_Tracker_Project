@@ -6,7 +6,7 @@ bool setup_wifi(const char *wifi_SSID, const char *wifi_PASS)
 {
   Serial.println();
   Serial.print("Connecting to WiFi...");
-  WiFi.mode(WIFI_STA); // Set WiFi mode to Station
+  WiFi.mode(WIFI_MODE_STA); // Set WiFi mode to Station
   WiFi.begin(wifi_SSID, wifi_PASS);
   WiFi.setTxPower(WIFI_POWER_8_5dBm);
   int prev_millis = millis();
