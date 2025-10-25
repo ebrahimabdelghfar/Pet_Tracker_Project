@@ -1,19 +1,6 @@
 {
   "build": {
     "builder": "dockerfile",
-    "context": "./mosquitto"
-  },
-  "deploy": {
-    "numReplicas": 1,
-    "startCommand": "/entrypoint.sh",
-    "healthchecks": {
-      "readiness": {
-        "initialDelaySeconds": 5,
-        "periodSeconds": 30,
-        "timeoutSeconds": 10,
-        "successThreshold": 1,
-        "failureThreshold": 3
-      }
-    }
+    "dockerfile": "mosquitto/Dockerfile"
   }
 }
