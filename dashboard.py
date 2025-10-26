@@ -61,6 +61,12 @@ def compute_zoom(latitudes, longitudes):
         return 8
     return 6
 
+# --- MQTT Configuration Constants ---
+MQTT_BROKER = "139.59.189.102"
+MQTT_PORT = 1883
+MQTT_USERNAME = "petguard"  # Leave empty if no authentication required
+MQTT_PASSWORD = "petguard"  # Leave empty if no authentication required
+
 # --- Global Variables & Configuration ---
 # Dictionary to store the latest data from the pet tracker
 pet_data = {
@@ -242,12 +248,12 @@ app.layout = dbc.Container([
         dbc.Card(
             dbc.CardBody([
                 dbc.Row([
-                    dbc.Col(dbc.Input(id='mqtt-broker-input', placeholder='MQTT Broker (e.g., 4.tcp.ngrok.io:12345)', value='broker.hivemq.com'), lg=3, md=6, className="mb-2 mb-lg-0"),
-                    dbc.Col(dbc.Input(id='mqtt-username-input', placeholder='MQTT Username (optional)'), lg=2, md=6, className="mb-2 mb-lg-0"),
-                    dbc.Col(dbc.Input(id='mqtt-password-input', placeholder='MQTT Password (optional)', type='password'), lg=2, md=6, className="mb-2 mb-lg-0"),
-                    dbc.Col(dbc.Input(id='pet-name-input', placeholder='Pet Name (e.g., PET)', value='PET'), lg=2, md=6, className="mb-2 mb-lg-0"),
+                    dbc.Col(dbc.Input(id='pet-name-input', placeholder='Pet Name (e.g., PET)', value='PET'), lg=4, md=6, className="mb-2 mb-lg-0"),
                     dbc.Col(dbc.Button("Connect", id='connect-button', color='primary', className="w-100"), lg=2, md=6, className="mb-2 mb-lg-0"),
-                    dbc.Col(html.Div(id='connection-status', className="text-center mt-2"), lg=1, md=6)
+                    dbc.Col(html.Div(id='connection-status', className="text-center mt-2"), lg=6, md=12)
+                ]),
+                dbc.Row([
+                    dbc.Col(html.Small("MQTT Broker and credentials are pre-configured", className="text-muted"), lg=12, className="mt-3")
                 ])
             ]),
             className="bg-dark border-0 shadow-sm mb-4"
@@ -421,13 +427,10 @@ def toggle_auto_center(n_clicks, is_enabled):
     [Output('connection-status', 'children'),
      Output('pet-name-store', 'data')],
     [Input('connect-button', 'n_clicks')],
-    [State('mqtt-broker-input', 'value'),
-     State('mqtt-username-input', 'value'),
-     State('mqtt-password-input', 'value'),
-     State('pet-name-input', 'value')],
+    [State('pet-name-input', 'value')],
     prevent_initial_call=True
 )
-def manage_connection(n_clicks, broker_addr, username, password, pet_name):
+def manage_connection(n_clicks, pet_name):
     """Handle the connect/disconnect logic for the MQTT client."""
     global mqtt_thread
     
@@ -438,18 +441,12 @@ def manage_connection(n_clicks, broker_addr, username, password, pet_name):
             mqtt_thread = None
             print("Disconnected from MQTT.")
         
-        if not broker_addr or not pet_name:
-            return "Broker and Pet Name are required.", dash.no_update
+        if not pet_name:
+            return "Pet Name is required.", dash.no_update
 
         try:
-            # Split broker address and port
-            if ':' in broker_addr:
-                broker, port = broker_addr.split(':')
-            else:
-                broker, port = broker_addr, 1883 # Default MQTT port
-            
-            # Start the MQTT client in a new thread
-            mqtt_thread = MqttClientThread(broker, port, username, password, pet_name)
+            # Start the MQTT client in a new thread using pre-configured credentials
+            mqtt_thread = MqttClientThread(MQTT_BROKER, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD, pet_name)
             mqtt_thread.start()
             
             status_icon = html.I(className="fas fa-check-circle text-success")

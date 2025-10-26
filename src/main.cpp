@@ -21,10 +21,10 @@ String gprsUser = "";
 String gprsPass = "";
 String ssid = "asu13";                         // Replace with your WiFi SSID
 String password = "12345678";                  // Replace with your WiFi password
-String mqtt_server = "2.tcp.eu.ngrok.io";      // Replace with your MQTT server address
-String mqtt_username = "hima";                 // Replace with your MQTT username
-String mqtt_password = "himaet23";             // Replace with your MQTT password
-String bluetooth_name = "Ebrahim's S25 Ultra"; // Replace with your Bluetooth name
+String mqtt_server = "139.59.189.102";      // Replace with your MQTT server address
+String mqtt_username = "petguard";                 // Replace with your MQTT username
+String mqtt_password = "petguard";             // Replace with your MQTT password
+String bluetooth_name = " "; // Replace with your Bluetooth name
 String pet_name = "PET";                       // Replace with your pet's name
 /*variables to hold pet data*/
 float pet_temperature = 0.0;               // pet temperature value
