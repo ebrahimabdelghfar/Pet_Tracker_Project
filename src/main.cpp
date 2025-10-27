@@ -40,6 +40,8 @@ bool gsm_changed = false;                  // flag to indicate if GSM mode has c
 bool is_factory_reset_requested = false;   // flag to indicate if factory reset is requested
 bool is_first_time_to_open_device = false; // flag to indicate if this is the first time opening the device
 bool bluetooth_device_found = false;       // flag to indicate if Bluetooth device is found
+int number_of_gsm_retries = 0;          // counter for GSM connection retries
+int number_of_gsm_retries_before_restart = 0; // counter for GSM retries before restarting the modem
 HardwareSerial SerialAT(2);                // RX, TX
 WiFiClient espClient;
 PubSubClient mqtt_wifi(espClient);
@@ -154,8 +156,7 @@ void reconnect_wifi()
   uint32_t timeout = millis() + 30000; // 30 second timeout
   while (!mqtt_wifi.connected() && WiFi.status() == WL_CONNECTED && millis() < timeout)
   {
-    Serial.print("Attempting MQTT connection...");
-    if (mqtt_wifi.connect(String("ESP32Client" + random(0xffff)).c_str(), mqtt_username.c_str(), mqtt_password.c_str()))
+    if (mqtt_wifi.connect(String("pet_guard" + random(0xffff)).c_str(), mqtt_username.c_str(), mqtt_password.c_str()))
     {
       mqtt_wifi.subscribe((pet_name + PET_NAME_TOPIC).c_str());
       mqtt_wifi.subscribe((pet_name + WIFI_SSID_TOPIC).c_str());
@@ -163,10 +164,10 @@ void reconnect_wifi()
       mqtt_wifi.subscribe((pet_name + MQTT_SERVER_TOPIC).c_str());
       mqtt_wifi.subscribe((pet_name + MQTT_USERNAME_TOPIC).c_str());
       mqtt_wifi.subscribe((pet_name + MQTT_PASSWORD_TOPIC).c_str());
-      mqtt_gsm.subscribe((pet_name + BLUETOOTH_NAME_TOPIC).c_str());
-      mqtt_gsm.subscribe((pet_name + GSM_APN_TOPIC).c_str());
-      mqtt_gsm.subscribe((pet_name + GSM_USER_TOPIC).c_str());
-      mqtt_gsm.subscribe((pet_name + GSM_PASSWORD_TOPIC).c_str());
+      mqtt_wifi.subscribe((pet_name + BLUETOOTH_NAME_TOPIC).c_str());
+      mqtt_wifi.subscribe((pet_name + GSM_APN_TOPIC).c_str());
+      mqtt_wifi.subscribe((pet_name + GSM_USER_TOPIC).c_str());
+      mqtt_wifi.subscribe((pet_name + GSM_PASSWORD_TOPIC).c_str());
     }
     else
     {
@@ -177,10 +178,9 @@ void reconnect_wifi()
 
 void reconnect_gsm()
 {
-  while (!mqtt_gsm.connected())
+  while (!mqtt_gsm.connected()&& number_of_gsm_retries<5)
   {
-    Serial.print("Attempting MQTT connection...");
-    if (mqtt_gsm.connect(String("ESP32Client" + random(0xffff)).c_str(), mqtt_username.c_str(), mqtt_password.c_str()))
+    if (mqtt_gsm.connect(String("pet_guard" + random(0xffff)).c_str(), mqtt_username.c_str(), mqtt_password.c_str()))
     {
       mqtt_gsm.subscribe((pet_name + PET_NAME_TOPIC).c_str());
       mqtt_gsm.subscribe((pet_name + WIFI_SSID_TOPIC).c_str());
@@ -195,6 +195,18 @@ void reconnect_gsm()
     }
     else
     {
+      number_of_gsm_retries_before_restart ++;
+      number_of_gsm_retries++;
+      if (number_of_gsm_retries >= 5)
+      {
+        number_of_gsm_retries = 0;
+        setupGSM(apn);
+      }
+      if (number_of_gsm_retries >= 10)
+      {
+        number_of_gsm_retries = 0;
+        ESP.restart();
+      }
       delay(100);
     }
   }
@@ -282,8 +294,6 @@ void loop()
         pet_temperature = getTemp();
         pet_heart_rate = getHeartRate();
         pet_battery_percentage = readPercentage();
-        Serial.println("Publishing data over WiFi:");
-        Serial.println("Battery Percentage: " + String(pet_battery_percentage));
         mqtt_wifi.publish((pet_name + TEMPERATURE_TOPIC).c_str(), String(pet_temperature).c_str());
         mqtt_wifi.publish((pet_name + VOLTAGE_PERCENTAGE_TOPIC).c_str(), String(pet_battery_percentage).c_str());
         mqtt_wifi.publish((pet_name + HEART_RATE_TOPIC).c_str(), String(pet_heart_rate).c_str());
@@ -310,9 +320,11 @@ void loop()
         }
         pet_temperature = getTemp();
         pet_heart_rate = getHeartRate();
+        float last_battery_percentage = pet_battery_percentage;
         pet_battery_percentage = readPercentage();
-        Serial.println("Publishing data over GSM");
-        Serial.println("Battery Percentage: " + String(pet_battery_percentage));
+        if (pet_battery_percentage<=0.0){
+          pet_battery_percentage=last_battery_percentage;
+        }
         mqtt_gsm.publish((pet_name + TEMPERATURE_TOPIC).c_str(), String(pet_temperature).c_str());
         mqtt_gsm.publish((pet_name + VOLTAGE_PERCENTAGE_TOPIC).c_str(), String(pet_battery_percentage).c_str());
         mqtt_gsm.publish((pet_name + HEART_RATE_TOPIC).c_str(), String(pet_heart_rate).c_str());

@@ -61,12 +61,6 @@ def compute_zoom(latitudes, longitudes):
         return 8
     return 6
 
-# --- MQTT Configuration Constants ---
-MQTT_BROKER = "139.59.189.102"
-MQTT_PORT = 1883
-MQTT_USERNAME = "petguard"  # Leave empty if no authentication required
-MQTT_PASSWORD = "petguard"  # Leave empty if no authentication required
-
 # --- Global Variables & Configuration ---
 # Dictionary to store the latest data from the pet tracker
 pet_data = {
@@ -248,12 +242,12 @@ app.layout = dbc.Container([
         dbc.Card(
             dbc.CardBody([
                 dbc.Row([
-                    dbc.Col(dbc.Input(id='pet-name-input', placeholder='Pet Name (e.g., PET)', value='PET'), lg=4, md=6, className="mb-2 mb-lg-0"),
+                    dbc.Col(dbc.Input(id='mqtt-broker-input', placeholder='MQTT Broker (e.g., 4.tcp.ngrok.io:12345)', value='broker.hivemq.com'), lg=3, md=6, className="mb-2 mb-lg-0"),
+                    dbc.Col(dbc.Input(id='mqtt-username-input', placeholder='MQTT Username (optional)'), lg=2, md=6, className="mb-2 mb-lg-0"),
+                    dbc.Col(dbc.Input(id='mqtt-password-input', placeholder='MQTT Password (optional)', type='password'), lg=2, md=6, className="mb-2 mb-lg-0"),
+                    dbc.Col(dbc.Input(id='pet-name-input', placeholder='Pet Name (e.g., PET)', value='PET'), lg=2, md=6, className="mb-2 mb-lg-0"),
                     dbc.Col(dbc.Button("Connect", id='connect-button', color='primary', className="w-100"), lg=2, md=6, className="mb-2 mb-lg-0"),
-                    dbc.Col(html.Div(id='connection-status', className="text-center mt-2"), lg=6, md=12)
-                ]),
-                dbc.Row([
-                    dbc.Col(html.Small("MQTT Broker and credentials are pre-configured", className="text-muted"), lg=12, className="mt-3")
+                    dbc.Col(html.Div(id='connection-status', className="text-center mt-2"), lg=1, md=6)
                 ])
             ]),
             className="bg-dark border-0 shadow-sm mb-4"
@@ -317,7 +311,7 @@ app.layout = dbc.Container([
                             id='heart-rate-gauge',
                             label="",
                             value=0,
-                            min=40,
+                            min=00,
                             max=220,
                             color={"gradient": True, "ranges": {"green": [40, 140], "yellow": [140, 180], "red": [180, 220]}},
                             showCurrentValue=True,
@@ -427,10 +421,13 @@ def toggle_auto_center(n_clicks, is_enabled):
     [Output('connection-status', 'children'),
      Output('pet-name-store', 'data')],
     [Input('connect-button', 'n_clicks')],
-    [State('pet-name-input', 'value')],
+    [State('mqtt-broker-input', 'value'),
+     State('mqtt-username-input', 'value'),
+     State('mqtt-password-input', 'value'),
+     State('pet-name-input', 'value')],
     prevent_initial_call=True
 )
-def manage_connection(n_clicks, pet_name):
+def manage_connection(n_clicks, broker_addr, username, password, pet_name):
     """Handle the connect/disconnect logic for the MQTT client."""
     global mqtt_thread
     
@@ -441,12 +438,18 @@ def manage_connection(n_clicks, pet_name):
             mqtt_thread = None
             print("Disconnected from MQTT.")
         
-        if not pet_name:
-            return "Pet Name is required.", dash.no_update
+        if not broker_addr or not pet_name:
+            return "Broker and Pet Name are required.", dash.no_update
 
         try:
-            # Start the MQTT client in a new thread using pre-configured credentials
-            mqtt_thread = MqttClientThread(MQTT_BROKER, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD, pet_name)
+            # Split broker address and port
+            if ':' in broker_addr:
+                broker, port = broker_addr.split(':')
+            else:
+                broker, port = broker_addr, 1883 # Default MQTT port
+            
+            # Start the MQTT client in a new thread
+            mqtt_thread = MqttClientThread(broker, port, username, password, pet_name)
             mqtt_thread.start()
             
             status_icon = html.I(className="fas fa-check-circle text-success")
@@ -557,14 +560,15 @@ def update_dashboard(n, relayout_data, pet_name, auto_center_enabled, map_view, 
     # --- Update GPS Map ---
     map_figure = go.Figure()
 
-    map_figure.add_trace(go.Scattermap(
+    map_figure.add_trace(go.Scattermapbox(
         lat=[latitude],
         lon=[longitude],
         mode='markers+text',
-        marker=dict(size=22, color='#ff4757'),
+        marker=dict(size=15, color='#ff4757'),
         text=[f"{pet_name}'s location" if pet_name else "Current location"],
-        textposition="top right",
-        name='Pet'
+        textposition="top center",
+        name='Pet',
+        hoverinfo='text'
     ))
 
     computed_zoom = compute_zoom(lat_history, lon_history)
@@ -599,17 +603,17 @@ def update_dashboard(n, relayout_data, pet_name, auto_center_enabled, map_view, 
     view_data['lon'] = center_lon
     view_data['zoom'] = center_zoom
 
-    style_entry = MAP_STYLE_CHOICES.get(map_style_key) or MAP_STYLE_CHOICES['maplibre_demo']
+    style_entry = MAP_STYLE_CHOICES.get(map_style_key) or MAP_STYLE_CHOICES['street']
     map_style = style_entry['style']
 
     map_figure.update_layout(
-        map=dict(style=map_style, center=dict(lat=center_lat, lon=center_lon), zoom=center_zoom),
+        mapbox=dict(style=map_style, center=dict(lat=center_lat, lon=center_lon), zoom=center_zoom),
         margin={"r":0,"t":0,"l":0,"b":0},
-        template="plotly_dark",
+        hovermode='closest',
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         showlegend=False,
-        transition={'duration': 500, 'easing': 'cubic-in-out'}
+        transition={'duration': 300, 'easing': 'cubic-in-out'}
     )
 
     # --- Update Historical Charts ---
@@ -671,4 +675,4 @@ def publish_settings(n_clicks, ssid, password, bt_name, pet_name):
 
 # --- Main Execution ---
 if __name__ == '__main__':
-    app.run(debug=True, port=8050)
+    app.run(debug=True,host='0.0.0.0', port=8050)
